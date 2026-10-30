@@ -7,6 +7,10 @@ import { boot, pruneMessages, unlockAudio } from '../app/controller';
 import { useStore } from '../app/store';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { Toasts } from './components/Toasts';
+import { DialogueOverlay } from './components/DialogueOverlay';
+import { CareerScreen } from './screens/CareerScreen';
+import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
+import { StatsScreen } from './screens/StatsScreen';
 import { RaceScreen } from './race/RaceScreen';
 import { BootScreen } from './screens/BootScreen';
 import { CreditsScreen } from './screens/CreditsScreen';
@@ -56,6 +60,10 @@ export function App() {
         {screen === 'garage' && <GarageScreen />}
         {screen === 'settings' && <SettingsScreen />}
         {screen === 'credits' && <CreditsScreen />}
+        {screen === 'career' && <CareerScreen />}
+        {screen === 'championships' && <ChampionshipsScreen />}
+        {screen === 'stats' && <StatsScreen />}
+        <DialogueOverlay />
         {screen !== 'race' && <Toasts />}
         <ConfirmDialog />
         {contextLost && (

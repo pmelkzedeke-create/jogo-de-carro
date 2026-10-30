@@ -12,8 +12,20 @@ import { getTrackDefinition } from '../tracks/TrackCatalog';
 import { appStore, type Screen } from './appState';
 import { buildRaceConfig, type SetupState } from './raceSetup';
 import { achievementName, evaluateAchievements } from '../career/Achievements';
+import { CAREER, findCareerEvent, type DialogueLine } from '../career/CareerData';
+import {
+  applyCareerChampionshipResult,
+  applyCareerEventResult,
+  buildCareerRaceConfig,
+  buildChampionshipRaceConfig,
+  markDialogueSeen,
+  startNewCareer,
+} from '../career/CareerProgress';
+import { applyChampionshipRound, getChampionship, resetChampionship } from '../career/Championships';
 
 let game: Game | null = null;
+/** Diálogo a exibir quando o jogador sair da tela de resultados. */
+let queuedDialogue: DialogueLine[] | null = null;
 let saveManager: SaveManager | null = null;
 let messageId = 0;
 let lastConfig: RaceConfig | null = null;
@@ -201,7 +213,14 @@ export async function startRace(config: RaceConfig, title?: string): Promise<voi
 }
 
 export function retryLastRace(): void {
-  if (lastConfig) void startRace({ ...lastConfig, seed: Date.now() % 2147483647 });
+  if (!lastConfig) return;
+  const pending = appStore.get().pendingEvent;
+  if (pending?.kind === 'championship') {
+    // A etapa atual (ainda não registrada) é corrida de novo; etapas registradas avançam.
+    startChampionshipRound(pending.id);
+    return;
+  }
+  void startRace({ ...lastConfig, seed: Date.now() % 2147483647 });
 }
 
 export async function startFromSetup(): Promise<void> {
@@ -253,8 +272,71 @@ export function exitRace(): void {
   }
   game.exitRace();
   const pending = appStore.get().pendingEvent;
-  appStore.set({ race: null, messages: [] });
+  appStore.set({ race: null, messages: [], pendingEvent: null });
   navigate(pending?.kind === 'career' ? 'career' : pending?.kind === 'championship' ? 'championships' : 'menu');
+  if (queuedDialogue) {
+    const lines = queuedDialogue;
+    queuedDialogue = null;
+    showDialogue('Carreira', lines);
+  }
+}
+
+export function showDialogue(title: string, lines: DialogueLine[], onDone?: () => void): void {
+  if (lines.length === 0) {
+    onDone?.();
+    return;
+  }
+  appStore.set({ dialogue: { title, lines, onDone } });
+}
+
+export function closeDialogue(): void {
+  const dialogue = appStore.get().dialogue;
+  appStore.set({ dialogue: null });
+  dialogue?.onDone?.();
+}
+
+/** Nova carreira: zera apenas o progresso da história (créditos, carros e recordes são mantidos). */
+export function beginNewCareer(): void {
+  const save = startNewCareer(appStore.get().save);
+  persist(markDialogueSeen(save, CAREER[0].id), true);
+  navigate('career');
+  showDialogue(CAREER[0].title, CAREER[0].intro);
+}
+
+/** Exibe a introdução de um capítulo na primeira visita. */
+export function maybeShowChapterIntro(chapterIndex: number): void {
+  const chapter = CAREER[chapterIndex];
+  const save = appStore.get().save;
+  if (!chapter || save.career.seenDialogues.includes(chapter.id)) return;
+  persist(markDialogueSeen(save, chapter.id));
+  showDialogue(chapter.title, chapter.intro);
+}
+
+export function startCareerEvent(eventId: string): void {
+  const found = findCareerEvent(eventId);
+  if (!found) return;
+  const { event } = found;
+  if (event.championshipId) {
+    appStore.set({ selectedChampionship: event.championshipId });
+    navigate('championships');
+    return;
+  }
+  const launch = () => {
+    appStore.set({ pendingEvent: { kind: 'career', id: eventId } });
+    void startRace(buildCareerRaceConfig(event, appStore.get().save), event.title);
+  };
+  showDialogue(event.title, event.before, launch);
+}
+
+export function startChampionshipRound(championshipId: string): void {
+  const save = appStore.get().save;
+  appStore.set({ pendingEvent: { kind: 'championship', id: championshipId } });
+  const config = buildChampionshipRaceConfig(championshipId, save);
+  void startRace(config, config.eventName);
+}
+
+export function newChampionshipSeason(championshipId: string): void {
+  persist(resetChampionship(appStore.get().save, championshipId), true);
 }
 
 function handleResults(results: RaceResults, final: boolean): void {
@@ -263,11 +345,45 @@ function handleResults(results: RaceResults, final: boolean): void {
   if (!race) return;
   // Aplicação idempotente: o mesmo resultado nunca é recompensado duas vezes.
   const outcome = applyRaceResults(state.save, results, evaluateAchievements);
+  let save = outcome.save;
+  let afterDialogue: DialogueLine[] = [];
   if (outcome.applied) {
-    persist(outcome.save, true);
     if (outcome.levelUp) pushMessage(`Nível ${outcome.levelUp} alcançado!`, 'good', 'level', 3500);
     for (const id of outcome.unlockedAchievements) pushMessage(`Conquista desbloqueada: ${achievementName(id)}`, 'good', `ach-${id}`, 3200);
   }
+  const pending = state.pendingEvent;
+  if (pending?.kind === 'career' && outcome.applied) {
+    const career = applyCareerEventResult(save, pending.id, results);
+    save = career.save;
+    if (career.completedEvent) {
+      pushMessage(`Evento concluído: ${career.completedEvent.title} (+${career.completedEvent.completionBonus.credits.toLocaleString('pt-BR')} CR de bônus)`, 'good', 'career', 4200);
+      afterDialogue = [...career.completedEvent.after];
+    } else if (results.player.finished) {
+      pushMessage('Objetivo não cumprido — tente novamente para avançar na carreira', 'warn', 'career', 4200);
+    }
+    if (career.completedChapter) {
+      pushMessage(`${career.completedChapter.title} concluído!`, 'good', 'chapter', 4500);
+      afterDialogue = [...afterDialogue, ...career.completedChapter.outro];
+    }
+  }
+  if (pending?.kind === 'championship' && final) {
+    const update = applyChampionshipRound(save, pending.id, results);
+    save = update.save;
+    if (update.applied) {
+      const def = getChampionship(pending.id);
+      const pts = update.save.championships[pending.id]?.points.player ?? 0;
+      pushMessage(`Etapa registrada — você soma ${pts} pontos no ${def.name}`, 'info', 'champ', 4000);
+      if (update.finished && update.finalPosition) {
+        pushMessage(`${def.name} encerrado: ${update.finalPosition}º lugar${update.reward ? ` (+${update.reward.credits.toLocaleString('pt-BR')} CR)` : ''}`, update.finalPosition <= 3 ? 'good' : 'info', 'champ-final', 5000);
+        const career = applyCareerChampionshipResult(save, pending.id, update.finalPosition);
+        save = career.save;
+        if (career.completedEvent) afterDialogue = [...career.completedEvent.after];
+        if (career.completedChapter) afterDialogue = [...afterDialogue, ...career.completedChapter.outro];
+      }
+    }
+  }
+  if (save !== state.save) persist(save, true);
+  if (afterDialogue.length) queuedDialogue = afterDialogue;
   appStore.set({
     race: {
       ...race,

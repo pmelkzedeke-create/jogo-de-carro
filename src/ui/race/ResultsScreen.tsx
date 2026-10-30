@@ -10,7 +10,10 @@ import { Button } from '../components/Controls';
 
 export function ResultsScreen() {
   const race = useStore(appStore, (s) => s.race);
+  const pendingEvent = useStore(appStore, (s) => s.pendingEvent);
+  const champProgress = useStore(appStore, (s) => (s.pendingEvent?.kind === 'championship' ? s.save.championships[s.pendingEvent.id] : undefined));
   if (!race?.results) return null;
+  const championship = pendingEvent?.kind === 'championship';
   const { results, final, outcome } = race;
   const player = results.player;
   const mode = MODES[results.config.mode];
@@ -158,14 +161,17 @@ export function ResultsScreen() {
         <div className="btn-row" style={{ marginTop: '1.3rem', justifyContent: 'flex-end' }}>
           {!final && pending > 0 && (
             <Button onClick={fastForwardRace} testId="fast-forward">
-              Concluir corrida dos adversários ({pending})
+              {championship ? 'Concluir etapa' : 'Concluir corrida dos adversários'} ({pending})
             </Button>
           )}
-          <Button onClick={retryLastRace} testId="retry">
-            ↺ Repetir evento
-          </Button>
-          <Button variant="primary" onClick={exitRace} testId="results-menu">
-            Menu principal
+          {championship && !final && <span className="muted" style={{ alignSelf: 'center', fontSize: '0.82rem' }}>A etapa é registrada quando todos terminarem.</span>}
+          {(!championship || (final && !champProgress?.completed)) && (
+            <Button onClick={retryLastRace} testId="retry">
+              {championship ? '▶ Próxima etapa' : '↺ Repetir evento'}
+            </Button>
+          )}
+          <Button variant="primary" onClick={exitRace} disabled={championship && !final} testId="results-menu">
+            {pendingEvent?.kind === 'career' ? 'Voltar à carreira' : championship ? 'Ver campeonato' : 'Menu principal'}
           </Button>
         </div>
       </div>

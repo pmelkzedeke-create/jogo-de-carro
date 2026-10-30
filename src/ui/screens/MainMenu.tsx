@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { appStore } from '../../app/appState';
-import { navigate, updateSetup, uiSound } from '../../app/controller';
+import { beginNewCareer, confirmAction, navigate, updateSetup, uiSound } from '../../app/controller';
+import { careerFinished, nextCareerEvent } from '../../career/CareerProgress';
 import { useStore } from '../../app/store';
 import { levelProgress, reputationTitle } from '../../career/Progression';
 import type { GameMode } from '../../racing/RaceTypes';
@@ -32,12 +33,41 @@ export function MainMenu() {
   const selected = getVehicle(save.garage.selected);
   const perf = estimatePerformance(selected);
 
+  const next = save.career.started ? nextCareerEvent(save) : null;
+  const careerEntries: MenuEntry[] = save.career.started
+    ? [
+        {
+          id: 'continue',
+          label: 'Continuar carreira',
+          hint: careerFinished(save) ? 'História concluída' : next ? `Próximo: ${next.title}` : 'Do Litoral à Liga',
+          action: () => navigate('career'),
+          highlight: true,
+        },
+        {
+          id: 'new-career',
+          label: 'Nova carreira',
+          hint: 'Recomeçar a história',
+          action: () =>
+            confirmAction(
+              'Recomeçar a carreira?',
+              'O progresso da história (capítulos, eventos e campeonato regional) será reiniciado. Créditos, carros, recordes e conquistas são mantidos.',
+              'Recomeçar',
+              beginNewCareer,
+              true,
+            ),
+        },
+      ]
+    : [{ id: 'new-career', label: 'Nova carreira', hint: 'História original: Do Litoral à Liga', action: beginNewCareer, highlight: true }];
+
   const entries: MenuEntry[] = [
-    { id: 'quick', label: 'Corrida rápida', hint: 'Pista, carro e adversários à sua escolha', action: () => openSetup('quickRace'), highlight: true },
+    ...careerEntries,
+    { id: 'quick', label: 'Corrida rápida', hint: 'Pista, carro e adversários à sua escolha', action: () => openSetup('quickRace') },
     { id: 'tt', label: 'Contrarrelógio', hint: 'Bata seus recordes de volta', action: () => openSetup('timeTrial') },
     { id: 'practice', label: 'Treino livre', hint: 'Sem adversários e sem pressão', action: () => openSetup('practice') },
     { id: 'drift', label: 'Desafio de drift', hint: 'Pontuação por drifts válidos', action: () => openSetup('drift') },
     { id: 'garage', label: 'Garagem', hint: `${save.garage.owned.length} ${save.garage.owned.length === 1 ? 'carro' : 'carros'}`, action: () => navigate('garage') },
+    { id: 'championships', label: 'Campeonatos', hint: 'Temporadas por pontos', action: () => navigate('championships') },
+    { id: 'stats', label: 'Estatísticas', hint: 'Recordes, histórico e conquistas', action: () => navigate('stats') },
     { id: 'settings', label: 'Configurações', hint: 'Gráficos, controles, áudio', action: () => navigate('settings') },
     { id: 'credits', label: 'Créditos', hint: 'Tecnologias e licenças', action: () => navigate('credits') },
   ];

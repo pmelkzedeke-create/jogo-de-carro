@@ -56,6 +56,12 @@ export interface ConfirmState {
   onConfirm: () => void;
 }
 
+export interface DialogueState {
+  title: string;
+  lines: import('../career/CareerData').DialogueLine[];
+  onDone?: () => void;
+}
+
 export interface AppState {
   screen: Screen;
   settingsReturn: Screen;
@@ -77,6 +83,9 @@ export interface AppState {
   touchDevice: boolean;
   /** Evento de carreira/campeonato em andamento (para retornar à tela correta). */
   pendingEvent: { kind: 'career' | 'championship'; id: string } | null;
+  dialogue: DialogueState | null;
+  /** Campeonato selecionado na tela de campeonatos. */
+  selectedChampionship: string;
 }
 
 const defaults = createDefaultSave();
@@ -108,4 +117,6 @@ export const appStore = createStore<AppState>({
   gamepad: null,
   touchDevice: false,
   pendingEvent: null,
+  dialogue: null,
+  selectedChampionship: 'copa-litoral',
 });

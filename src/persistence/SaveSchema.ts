@@ -103,6 +103,8 @@ export interface ChampionshipProgress {
   points: Record<string, number>;
   completed: boolean;
   finalPosition: number | null;
+  /** Último resultado registrado (evita contar a mesma etapa duas vezes). */
+  lastResultId?: string | null;
 }
 
 export interface SaveData {
@@ -316,6 +318,7 @@ function validateChampionships(raw: UnknownRecord): Record<string, ChampionshipP
       points,
       completed: readBoolean(value, 'completed', false),
       finalPosition: readOptionalNumber(value, 'finalPosition', 1, 64),
+      lastResultId: typeof value.lastResultId === 'string' ? value.lastResultId.slice(0, 120) : null,
     };
   }
   return out;
