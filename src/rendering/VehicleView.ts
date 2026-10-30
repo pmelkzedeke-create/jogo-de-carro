@@ -12,12 +12,24 @@ export class VehicleView {
   readonly position = new THREE.Vector3();
   readonly quaternion = new THREE.Quaternion();
   private blinkTime = 0;
+  private detailVisible = true;
   private lean = new THREE.Euler();
 
   constructor(
     readonly model: VehicleModel,
     readonly vehicle: VehiclePhysics,
   ) {}
+
+  /** Oculta detalhes internos quando o carro está longe da câmera (economiza draw calls). */
+  updateDetail(cameraPosition: THREE.Vector3, hideDriver: boolean): void {
+    const visible = this.position.distanceToSquared(cameraPosition) < 70 * 70;
+    if (visible !== this.detailVisible) {
+      this.detailVisible = visible;
+      for (const d of this.model.details) d.visible = visible;
+    }
+    // Câmera de cockpit: o piloto do carro focado fica oculto.
+    this.model.driver.visible = visible && !hideDriver;
+  }
 
   update(alpha: number, dt: number): void {
     const v = this.vehicle;

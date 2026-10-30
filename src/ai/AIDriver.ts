@@ -191,7 +191,8 @@ export class AIDriver {
       brake = Math.min(brake, 1 - 0.55 * Math.abs(steer));
     }
     // Controle de tração/derrapagem: alivia quando as rodas motrizes patinam ou o carro desliza muito.
-    const slip = Math.max(...v.wheels.filter((w) => w.driven).map((w) => w.longitudinalSlip));
+    let slip = 0;
+    for (const w of v.wheels) if (w.driven && w.longitudinalSlip > slip) slip = w.longitudinalSlip;
     if (slip > 0.25) throttle *= 0.6;
     if (Math.abs(v.driftAngle) > 0.14) throttle *= 0.55;
 

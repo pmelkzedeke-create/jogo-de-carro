@@ -15,6 +15,7 @@ export function RaceScreen() {
     <div className="passthrough" style={{ position: 'absolute', inset: 0 }}>
       {!showResults && <RaceHUD minimal={settings.gameplay.minimalHud} showMinimap={settings.gameplay.showMinimap} showFps={settings.graphics.showFps} touch={touch} />}
       {touch && !paused && !showResults && <TouchControls />}
+      {touch && !paused && !showResults && <div className="rotate-hint">Gire o aparelho para a horizontal</div>}
       {showResults && !paused && <ResultsScreen />}
       {paused && <PauseMenu />}
     </div>

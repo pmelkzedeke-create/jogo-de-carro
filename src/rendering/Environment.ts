@@ -61,9 +61,9 @@ export const ENVIRONMENT_PRESETS: Readonly<Record<EnvironmentPresetId, Environme
     hemiSky: '#c9d4e6',
     hemiGround: '#4f5a43',
     hemiIntensity: 0.9,
-    fogColor: '#d4d2cc',
-    fogDensity: 0.0012,
-    exposure: 0.72,
+    fogColor: '#c9c8c2',
+    fogDensity: 0.0011,
+    exposure: 0.64,
     headlights: false,
   },
   sunset: {
@@ -82,7 +82,7 @@ export const ENVIRONMENT_PRESETS: Readonly<Record<EnvironmentPresetId, Environme
     hemiIntensity: 0.75,
     fogColor: '#d9a585',
     fogDensity: 0.0011,
-    exposure: 0.88,
+    exposure: 0.8,
     headlights: true,
   },
   overcast: {
@@ -144,6 +144,11 @@ export class Environment {
     this.sky.name = 'sky';
     this.sky.frustumCulled = false;
     this.sky.renderOrder = -10;
+    // O disco solar do shader chega a ~6e4 em HDR, perto do limite do half-float usado no pós-processamento;
+    // limitar a saída evita estouro (Inf/NaN → tela branca e sol preto) e mantém um brilho forte porém estável.
+    const skyMaterial = this.sky.material;
+    skyMaterial.fragmentShader = skyMaterial.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );', 'gl_FragColor = vec4( min( texColor, vec3( 8.0 ) ), 1.0 );');
+    skyMaterial.needsUpdate = true;
     const u = this.sky.material.uniforms;
     u.turbidity.value = preset.turbidity;
     u.rayleigh.value = preset.rayleigh;

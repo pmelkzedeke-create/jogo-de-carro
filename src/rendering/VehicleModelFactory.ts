@@ -36,6 +36,8 @@ export interface VehicleModel {
   cockpitCamera: THREE.Vector3;
   /** Malha do piloto (oculta na câmera de cockpit). */
   driver: THREE.Object3D;
+  /** Detalhes ocultados à distância (interior, piloto, freios). */
+  details: THREE.Object3D[];
   provisional: boolean;
   dispose(): void;
 }
@@ -606,12 +608,12 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
     back.translate(side * driverX, spec.groundClearance + 0.66 + offsetY, seatZ - 0.28);
     interiorGeos.push(back);
   }
-  addMesh(mergeGeometries(interiorGeos.map((g) => (g.index ? g.toNonIndexed() : g))), materials.interior, body, false);
+  const interiorMesh = addMesh(mergeGeometries(interiorGeos.map((g) => (g.index ? g.toNonIndexed() : g))), materials.interior, body, false);
   interiorGeos.forEach((g) => g.dispose());
   const wheel = new THREE.TorusGeometry(0.17, 0.025, 8, 24);
   wheel.rotateX(-0.35);
   wheel.translate(driverX, spec.beltHeight - 0.02 + offsetY, spec.windshieldBase - 0.48);
-  addMesh(wheel, materials.trim, body, false);
+  const steeringWheel = addMesh(wheel, materials.trim, body, false);
 
   const driver = new THREE.Group();
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.5, 0.26), materials.suit);
@@ -644,6 +646,7 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
     hoodCamera,
     cockpitCamera,
     driver,
+    details: [interiorMesh, steeringWheel, driver, ...wheels.map((w) => w.root.children[1]).filter(Boolean)],
     provisional: true,
     dispose() {
       for (const g of ownGeometries) g.dispose();
@@ -790,6 +793,7 @@ export function createGltfVehicle(definition: VehicleDefinition, paint: PaintOpt
     hoodCamera: new THREE.Vector3(0, spec.beltHeight + 0.2 + offsetY, spec.windshieldBase - 0.05),
     cockpitCamera: new THREE.Vector3(spec.width * 0.2, Math.min(spec.groundClearance + 1.06, spec.roofHeight - 0.2) + 0.02 + offsetY, seatZ - 0.02),
     driver: new THREE.Group(),
+    details: [],
     provisional: definition.provisionalModel,
     dispose() {
       paintMaterial.dispose();

@@ -305,18 +305,22 @@ export class TrackView {
     line.position.copy(frame.position).addScaledVector(frame.up, 0.012);
     this.add(line);
 
-    // Marcações do grid.
-    const markGeo = new THREE.PlaneGeometry(2.4, 0.22);
+    // Marcações do grid (mescladas em uma única malha).
+    const marks: THREE.BufferGeometry[] = [];
+    const dummy = new THREE.Object3D();
+    dummy.rotation.order = 'YXZ';
     for (const slot of track.grid) {
       const f = track.sampleAt(slot.s);
-      const mark = new THREE.Mesh(markGeo, this.materials.paint());
-      mark.rotation.order = 'YXZ';
-      mark.rotation.y = Math.atan2(f.tangent.x, f.tangent.z);
-      mark.rotation.x = -Math.PI / 2;
-      mark.position.copy(f.position).addScaledVector(f.right, slot.lateral).addScaledVector(f.tangent, 2.6).addScaledVector(f.up, 0.012);
-      this.group.add(mark);
+      dummy.rotation.set(-Math.PI / 2, Math.atan2(f.tangent.x, f.tangent.z), 0);
+      dummy.position.copy(f.position).addScaledVector(f.right, slot.lateral).addScaledVector(f.tangent, 2.6).addScaledVector(f.up, 0.012);
+      dummy.updateMatrix();
+      marks.push(new THREE.PlaneGeometry(2.4, 0.22).applyMatrix4(dummy.matrix));
     }
-    this.disposables.push(markGeo);
+    if (marks.length) {
+      const merged = mergeGeometries(marks);
+      marks.forEach((g) => g.dispose());
+      this.add(new THREE.Mesh(merged, this.materials.paint()), false, true);
+    }
 
     // Pórtico com luzes de largada (atrás das barreiras, sem colisão com a pista).
     const span = track.barrierOffset + 1.4;
@@ -354,8 +358,7 @@ export class TrackView {
       ['FAÍSCA PNEUS', '#c4161c', '#ffffff'],
       ['VILA MARÉ', '#f2c14e', '#111318'],
     ];
-    const bannerGeo = new THREE.PlaneGeometry(7.6, 0.9);
-    this.disposables.push(bannerGeo);
+    const bannersByBrand = new Map<string, { material: THREE.Material; geos: THREE.BufferGeometry[] }>();
     for (const run of track.barriers) {
       if (run.side === 0) continue;
       for (let i = 0; i < run.points.length - 1; i += 4) {
@@ -366,13 +369,24 @@ export class TrackView {
         const b = run.points[Math.min(i + 2, run.points.length - 1)];
         const dir = new THREE.Vector3().subVectors(b, a).setY(0).normalize();
         const brand = brands[Math.floor(this.rng.next() * brands.length)];
-        const mesh = new THREE.Mesh(bannerGeo, this.materials.banner(brand[0], brand[1], brand[2]));
         const inward = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(-run.side);
-        mesh.position.copy(a).add(b).multiplyScalar(0.5).addScaledVector(inward, 0.05);
-        mesh.position.y += 1.6;
-        mesh.lookAt(mesh.position.clone().add(inward));
-        this.group.add(mesh);
+        dummy.rotation.set(0, 0, 0);
+        dummy.position.copy(a).add(b).multiplyScalar(0.5).addScaledVector(inward, 0.05);
+        dummy.position.y += 1.6;
+        dummy.lookAt(dummy.position.clone().add(inward));
+        dummy.updateMatrix();
+        let entry = bannersByBrand.get(brand[0]);
+        if (!entry) {
+          entry = { material: this.materials.banner(brand[0], brand[1], brand[2]), geos: [] };
+          bannersByBrand.set(brand[0], entry);
+        }
+        entry.geos.push(new THREE.PlaneGeometry(7.6, 0.9).applyMatrix4(dummy.matrix));
       }
+    }
+    for (const { material, geos } of bannersByBrand.values()) {
+      const merged = mergeGeometries(geos);
+      geos.forEach((g) => g.dispose());
+      this.add(new THREE.Mesh(merged, material), false, true);
     }
   }
 

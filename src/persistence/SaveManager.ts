@@ -47,6 +47,8 @@ export interface LoadResult {
   warnings: string[];
   persistent: boolean;
   recoveredFromBackup: boolean;
+  /** Nenhum progresso salvo encontrado (primeira execução). */
+  isNew: boolean;
 }
 
 export class SaveManager {
@@ -92,10 +94,10 @@ export class SaveManager {
       }
     }
     if (raw === undefined || raw === null) {
-      return { data: createDefaultSave(), warnings, persistent: this.persistent, recoveredFromBackup };
+      return { data: createDefaultSave(), warnings, persistent: this.persistent, recoveredFromBackup, isNew: raw === undefined };
     }
     const result = validateSave(raw);
-    return { data: result.data, warnings: [...warnings, ...result.warnings], persistent: this.persistent, recoveredFromBackup };
+    return { data: result.data, warnings: [...warnings, ...result.warnings], persistent: this.persistent, recoveredFromBackup, isNew: false };
   }
 
   save(data: SaveData): boolean {

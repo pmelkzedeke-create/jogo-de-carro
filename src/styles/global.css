@@ -1764,6 +1764,34 @@ input[type='range'] {
   }
 }
 
+.rotate-hint {
+  display: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .rotate-hint {
+    display: block;
+    position: absolute;
+    top: calc(40% + var(--safe-top));
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    background: rgba(10, 11, 14, 0.8);
+    border: 1px solid var(--line);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: center;
+    pointer-events: none;
+  }
+  .hud-tr {
+    transform: scale(0.85);
+    transform-origin: top right;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

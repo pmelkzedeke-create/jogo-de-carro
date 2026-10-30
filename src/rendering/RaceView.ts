@@ -246,7 +246,6 @@ export class RaceView {
     if (session.phase === 'finished' && this.cameraRig.mode !== 'orbit' && session.playerFinishTime !== null && session.raceTime - session.playerFinishTime > 2.5) {
       this.cameraRig.startOrbit(0);
     }
-    focusView.model.driver.visible = !this.cameraRig.hidesDriver;
     this.cameraRig.update(
       paused ? 0 : frameDt,
       {
@@ -260,6 +259,8 @@ export class RaceView {
       },
       this.focus.projection.s,
     );
+    const camPos = this.cameraRig.camera.position;
+    for (const view of this.views.values()) view.updateDetail(camPos, view === focusView && this.cameraRig.hidesDriver);
     this.environment.update(this.cameraRig.camera.position, focusView.position);
     this.trackView.update(this.elapsed);
 

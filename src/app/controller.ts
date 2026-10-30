@@ -52,7 +52,12 @@ export async function boot(container: HTMLElement): Promise<void> {
   }
   saveManager = saveManager ?? new SaveManager();
   const loaded = saveManager.load();
-  const save = loaded.data;
+  let save = loaded.data;
+  if (loaded.isNew) {
+    // Primeira execução: escolhe a qualidade inicial conforme o dispositivo (ajustável depois).
+    save = { ...save, settings: { ...save.settings, graphics: { ...save.settings.graphics, ...detectInitialGraphics() } } };
+    saveManager.save(save);
+  }
   const touchDevice = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
   appStore.set({
     save,
@@ -88,6 +93,17 @@ export async function boot(container: HTMLElement): Promise<void> {
   } catch (error) {
     appStore.set({ bootError: error instanceof Error ? error.message : String(error) });
   }
+}
+
+/** Heurística simples e transparente para a qualidade inicial. */
+export function detectInitialGraphics(): Partial<Settings['graphics']> {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const cores = nav.hardwareConcurrency ?? 4;
+  const memory = nav.deviceMemory ?? 8;
+  const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  if (cores <= 2 || memory <= 2) return { preset: 'low', renderScale: 0.7, shadows: 'off', drawDistance: 'near', particles: 'low', effects: 'low' };
+  if (coarse || cores <= 4 || memory <= 4) return { preset: 'medium', renderScale: 0.85, shadows: 'low', drawDistance: 'medium', particles: 'medium', effects: 'low' };
+  return { preset: 'high', renderScale: 1, shadows: 'medium', drawDistance: 'far', particles: 'medium', effects: 'medium' };
 }
 
 function getTrackDefinitionSafe(id: string): string {

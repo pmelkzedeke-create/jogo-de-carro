@@ -82,7 +82,7 @@ export class Renderer {
   };
 
   get pixelRatio(): number {
-    const device = Math.min(window.devicePixelRatio || 1, 2);
+    const device = Math.min(window.devicePixelRatio || 1, 1.75);
     return Math.max(0.35, device * this.graphics.renderScale);
   }
 
@@ -137,7 +137,7 @@ export class Renderer {
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
     this.composer.addPass(this.renderPass);
     // Bloom sutil: o limiar alto (HDR) restringe o brilho a fontes emissivas fortes (faróis, lanternas, sol).
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), level === 'high' ? 0.32 : 0.24, 0.35, 1.6);
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), level === 'high' ? 0.26 : 0.18, 0.3, 2.6);
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(new OutputPass());
     this.composer.setPixelRatio(this.pixelRatio);

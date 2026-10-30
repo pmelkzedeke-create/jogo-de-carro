@@ -107,6 +107,7 @@ export class RaceSession {
   private readonly driftEvents: DriftEvent[] = [];
   private readonly impactCooldown = new Map<string, number>();
   private safeTimer = 0;
+  private classifyCounter = 0;
   private readonly safeHistory = new Map<string, Array<{ s: number; lateral: number }>>();
 
   constructor(options: SessionOptions) {
@@ -326,7 +327,11 @@ export class RaceSession {
       this.updateProjection(racer);
       this.updateRules(racer, dt, racing, recordSafe);
     }
-    this.classify();
+    // Classificação a ~40 Hz (suficiente para o HUD; chegadas classificam imediatamente).
+    if (++this.classifyCounter >= 3) {
+      this.classifyCounter = 0;
+      this.classify();
+    }
     this.updateCompletion();
   }
 
