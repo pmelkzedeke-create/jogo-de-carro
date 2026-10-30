@@ -169,7 +169,8 @@ export class AIDriver {
     steer = clamp(steer, -1, 1);
 
     // --- Velocidade ---
-    let target = this.targetSpeedAt(self.s + absSpeed * 0.35);
+    // Antecipação de ~0,6 s compensa o atraso do pedal e do controlador.
+    let target = Math.min(this.targetSpeedAt(self.s + absSpeed * 0.3), this.targetSpeedAt(self.s + absSpeed * 0.6));
     // Abrindo além do limite da pista: reduz o ritmo para recuperar a trajetória.
     const overshoot = Math.abs(self.lateral) - (limit + 0.8);
     if (overshoot > 0) target *= Math.max(0.65, 1 - overshoot * 0.08);
@@ -185,7 +186,7 @@ export class AIDriver {
     } else if (error > -1.2) {
       throttle = clamp(0.25 + error * 0.2, 0, 0.25);
     } else {
-      brake = clamp(-error * 0.16, 0, 1);
+      brake = clamp(-error * 0.28, 0, 1);
       // Frear forte com muito esterço satura a traseira: limita a frenagem em curva.
       brake = Math.min(brake, 1 - 0.55 * Math.abs(steer));
     }

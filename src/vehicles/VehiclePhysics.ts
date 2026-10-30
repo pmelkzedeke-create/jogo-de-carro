@@ -501,7 +501,9 @@ export class VehiclePhysics {
       // --- Força lateral (curva de deriva) ---
       const vRef = Math.max(Math.abs(vLong), LOW_SPEED_REFERENCE);
       const slipAngle = Math.atan2(vLat, vRef);
-      const latCoeff = lateralTireCurve(slipAngle / this.phys.peakSlipAngle, tires.slideGripRatio);
+      // O eixo traseiro tem pico de deriva mais largo: perde aderência de forma mais progressiva (estabilidade).
+      const peak = this.phys.peakSlipAngle * (isRear ? 1.18 : 1);
+      const latCoeff = lateralTireCurve(slipAngle / peak, tires.slideGripRatio);
       let fLat = -latCoeff * maxLat;
 
       // --- Elipse de atrito ---
@@ -516,7 +518,7 @@ export class VehiclePhysics {
 
       wheel.slipAngle = slipAngle;
       wheel.lateralSlip = Math.abs(vLat);
-      const lateralSkid = clamp01((Math.abs(vLat) - 1.2) / 5) * (Math.abs(slipAngle) > this.phys.peakSlipAngle * 0.85 ? 1 : 0.25);
+      const lateralSkid = clamp01((Math.abs(vLat) - 1.2) / 5) * (Math.abs(slipAngle) > peak * 0.85 ? 1 : 0.25);
       const spinSkid = clamp01(wheel.longitudinalSlip * 1.5) * clamp01(Math.abs(this.drivetrain.throttle));
       const lockSkid = wheel.locked ? clamp01(Math.abs(vLong) / 8) : 0;
       wheel.skid = Math.max(lateralSkid, spinSkid, lockSkid);

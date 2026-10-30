@@ -83,7 +83,7 @@ describe('IA completa voltas reais (pista + física + regras de volta)', () => {
       // eslint-disable-next-line no-console
       console.log(`${trackId} / ${vehicleId} / ${difficulty}: ${r.finished ? `${r.time!.toFixed(2)} s` : 'NÃO TERMINOU'} | média ${((r.length / (r.time ?? 1)) * 3.6).toFixed(0)} km/h | máx ${(r.maxSpeed * 3.6).toFixed(0)} km/h | fora da pista ${r.offTrackSeconds.toFixed(1)} s (máx ${r.maxOff.toFixed(1)} m)`);
       expect(r.finished).toBe(true);
-      expect(r.offTrackSeconds).toBeLessThan(3);
+      expect(r.offTrackSeconds).toBeLessThan(1);
     });
   }
 });
