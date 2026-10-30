@@ -9,6 +9,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { smoothstep } from '../utils/math';
 import type { PaintOption, ProceduralBodySpec, VehicleDefinition } from '../vehicles/VehicleConfig';
 import { resolvePhysics } from '../vehicles/VehicleConfig';
+import type { LoadedVehicleAsset } from './VehicleAssetLoader';
 
 export interface WheelVisual {
   /** Posicionado no centro da roda; rotação Y = esterço. */
@@ -42,6 +43,7 @@ export interface VehicleModel {
 /** Materiais compartilhados entre todos os carros. */
 export class VehicleMaterials {
   readonly glass = new THREE.MeshPhysicalMaterial({
+    name: 'glass',
     color: 0x0c1116,
     metalness: 0.05,
     roughness: 0.04,
@@ -51,17 +53,17 @@ export class VehicleMaterials {
     clearcoat: 1,
     clearcoatRoughness: 0.02,
   });
-  readonly trim = new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.55, metalness: 0.1 });
-  readonly liner = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9, metalness: 0, side: THREE.BackSide });
-  readonly grille = new THREE.MeshStandardMaterial({ color: 0x08090a, roughness: 0.4, metalness: 0.3 });
-  readonly chrome = new THREE.MeshStandardMaterial({ color: 0xe0e3e6, roughness: 0.12, metalness: 1 });
-  readonly tire = new THREE.MeshStandardMaterial({ color: 0x17171a, roughness: 0.9, metalness: 0 });
-  readonly interior = new THREE.MeshStandardMaterial({ color: 0x1d1f23, roughness: 0.85, metalness: 0 });
+  readonly trim = new THREE.MeshStandardMaterial({ name: 'trim', color: 0x111214, roughness: 0.55, metalness: 0.1 });
+  readonly liner = new THREE.MeshStandardMaterial({ name: 'liner', color: 0x0b0b0c, roughness: 0.9, metalness: 0, side: THREE.BackSide });
+  readonly grille = new THREE.MeshStandardMaterial({ name: 'grille', color: 0x08090a, roughness: 0.4, metalness: 0.3 });
+  readonly chrome = new THREE.MeshStandardMaterial({ name: 'chrome', color: 0xe0e3e6, roughness: 0.12, metalness: 1 });
+  readonly tire = new THREE.MeshStandardMaterial({ name: 'tire', color: 0x17171a, roughness: 0.9, metalness: 0 });
+  readonly interior = new THREE.MeshStandardMaterial({ name: 'interior', color: 0x1d1f23, roughness: 0.85, metalness: 0 });
   readonly brakeParts = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.6 });
-  readonly headlight = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: 1.4, roughness: 0.1, metalness: 0.2 });
-  readonly suit = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.8 });
-  readonly helmet = new THREE.MeshPhysicalMaterial({ color: 0xf2f2f2, roughness: 0.3, clearcoat: 1 });
-  readonly visor = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.1, metalness: 0.6 });
+  readonly headlight = new THREE.MeshStandardMaterial({ name: 'headlight', color: 0xffffff, emissive: 0xfff4dc, emissiveIntensity: 1.4, roughness: 0.1, metalness: 0.2 });
+  readonly suit = new THREE.MeshStandardMaterial({ name: 'suit', color: 0x2b2f36, roughness: 0.8 });
+  readonly helmet = new THREE.MeshPhysicalMaterial({ name: 'helmet', color: 0xf2f2f2, roughness: 0.3, clearcoat: 1 });
+  readonly visor = new THREE.MeshStandardMaterial({ name: 'visor', color: 0x050607, roughness: 0.1, metalness: 0.6 });
   private readonly rims = new Map<string, THREE.MeshStandardMaterial>();
 
   rim(color: string): THREE.MeshStandardMaterial {
@@ -96,6 +98,7 @@ function cachedGeometry(key: string, factory: () => THREE.BufferGeometry): THREE
 
 export function createPaintMaterial(paint: PaintOption): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
+    name: 'paint',
     color: paint.color,
     metalness: paint.metalness,
     roughness: paint.roughness,
@@ -359,8 +362,8 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
   const body = new THREE.Group();
   root.add(body);
   const paintMaterial = createPaintMaterial(paint);
-  const brakeLightMaterial = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1208, emissiveIntensity: 0.7, roughness: 0.2 });
-  const reverseLightMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.2 });
+  const brakeLightMaterial = new THREE.MeshStandardMaterial({ name: 'brake_light', color: 0x3a0000, emissive: 0xff1208, emissiveIntensity: 0.7, roughness: 0.2 });
+  const reverseLightMaterial = new THREE.MeshStandardMaterial({ name: 'reverse_light', color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.2 });
   const ownGeometries: THREE.BufferGeometry[] = [];
   const addMesh = (geometry: THREE.BufferGeometry, material: THREE.Material, parent: THREE.Object3D = body, cast = true) => {
     const mesh = new THREE.Mesh(geometry, material);
@@ -624,7 +627,38 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
   driver.add(torso, helmet, visor);
   body.add(driver);
 
-  // --- Rodas ---
+  const wheels = createProceduralWheels(definition, materials, root, offsetY);
+
+  const hoodCamera = new THREE.Vector3(0, spec.beltHeight + 0.2 + offsetY, spec.windshieldBase - 0.05);
+  const cockpitCamera = new THREE.Vector3(driverX, helmetY + 0.02 + offsetY, seatZ - 0.02 - seatDrop * 0.6);
+
+  return {
+    root,
+    body,
+    wheels,
+    paintMaterial,
+    brakeLightMaterial,
+    reverseLightMaterial,
+    headlightMaterial: materials.headlight,
+    headlightPositions,
+    hoodCamera,
+    cockpitCamera,
+    driver,
+    provisional: true,
+    dispose() {
+      for (const g of ownGeometries) g.dispose();
+      paintMaterial.dispose();
+      brakeLightMaterial.dispose();
+      reverseLightMaterial.dispose();
+      root.removeFromParent();
+    },
+  };
+}
+
+/** Rodas procedurais (pneu, aro, disco e pinça) posicionadas nos eixos definidos pela física. */
+export function createProceduralWheels(definition: VehicleDefinition, materials: VehicleMaterials, root: THREE.Object3D, offsetY: number): WheelVisual[] {
+  const spec = definition.visual.procedural;
+  const w = definition.physics.wheels;
   const rimRadius = w.radius * (spec.style === 'super' ? 0.68 : spec.style === 'hatch' ? 0.6 : 0.64);
   const tire = tireGeometry(w.radius, w.width, rimRadius);
   const rim = rimGeometry(rimRadius, w.width, spec.rimStyle);
@@ -659,9 +693,91 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
     wheels.push({ root: wheelRoot, spin, isLeft: entry.left, isFront: entry.front });
   }
 
-  const hoodCamera = new THREE.Vector3(0, spec.beltHeight + 0.2 + offsetY, spec.windshieldBase - 0.05);
-  const cockpitCamera = new THREE.Vector3(driverX, helmetY + 0.02 + offsetY, seatZ - 0.02 - seatDrop * 0.6);
+  return wheels;
+}
 
+/**
+ * Monta um VehicleModel a partir de um GLB validado (VehicleAssetLoader).
+ * Cada carro recebe clones próprios dos materiais de pintura e de luzes.
+ */
+export function createGltfVehicle(definition: VehicleDefinition, paint: PaintOption, materials: VehicleMaterials, asset: LoadedVehicleAsset): VehicleModel {
+  const phys = resolvePhysics(definition.physics);
+  const offsetY = -phys.rideHeight;
+  const root = new THREE.Group();
+  root.name = `vehicle-${definition.id}-glb`;
+  const body = new THREE.Group();
+  root.add(body);
+  const holder = new THREE.Group();
+  holder.position.y = offsetY;
+  body.add(holder);
+  const scene = asset.scene.clone(true);
+  holder.add(scene);
+
+  const paintMaterial = createPaintMaterial(paint);
+  const report = asset.report;
+  const basePaint = new Set<THREE.Material>(report.paintMaterials);
+  let brakeLightMaterial: THREE.MeshStandardMaterial | null = report.brakeLight ? (report.brakeLight.clone() as THREE.MeshStandardMaterial) : null;
+  let reverseLightMaterial: THREE.MeshStandardMaterial | null = report.reverseLight ? (report.reverseLight.clone() as THREE.MeshStandardMaterial) : null;
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const swap = (m: THREE.Material): THREE.Material => {
+      if (basePaint.has(m)) return paintMaterial;
+      if (report.brakeLight && m === report.brakeLight && brakeLightMaterial) return brakeLightMaterial;
+      if (report.reverseLight && m === report.reverseLight && reverseLightMaterial) return reverseLightMaterial;
+      return m;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+  });
+
+  const extraGeometries: THREE.BufferGeometry[] = [];
+  // Luzes ausentes no arquivo: adiciona placas emissivas nas posições configuradas.
+  if (!brakeLightMaterial) {
+    brakeLightMaterial = new THREE.MeshStandardMaterial({ color: 0x3a0000, emissive: 0xff1208, emissiveIntensity: 0.7, roughness: 0.2 });
+    for (const [x, y, z] of definition.visual.taillights) {
+      const g = new THREE.BoxGeometry(0.34, 0.06, 0.04);
+      g.translate(x, y, z + 0.01);
+      extraGeometries.push(g);
+      body.add(new THREE.Mesh(g, brakeLightMaterial));
+    }
+  }
+  if (!reverseLightMaterial) reverseLightMaterial = new THREE.MeshStandardMaterial({ color: 0x777777, emissive: 0xffffff, emissiveIntensity: 0 });
+
+  // Rodas: usa os nós do arquivo (reparentados para os pivôs controlados pela física) ou rodas procedurais.
+  let wheels: WheelVisual[];
+  const names: Array<'fl' | 'fr' | 'rl' | 'rr'> = ['fl', 'fr', 'rl', 'rr'];
+  if (report.wheels.fl) {
+    const w = definition.physics.wheels;
+    const layout = [
+      { x: w.frontTrack / 2, z: w.frontAxle, left: true, front: true },
+      { x: -w.frontTrack / 2, z: w.frontAxle, left: false, front: true },
+      { x: w.rearTrack / 2, z: w.rearAxle, left: true, front: false },
+      { x: -w.rearTrack / 2, z: w.rearAxle, left: false, front: false },
+    ];
+    wheels = names.map((key, i) => {
+      const sourceName = report.wheels[key]!.name;
+      const node = scene.getObjectByName(sourceName)!;
+      const wheelRoot = new THREE.Group();
+      wheelRoot.position.set(layout[i].x, w.radius + offsetY, layout[i].z);
+      const spin = new THREE.Group();
+      const worldScale = new THREE.Vector3();
+      node.getWorldScale(worldScale);
+      node.removeFromParent();
+      node.position.set(0, 0, 0);
+      node.rotation.set(0, 0, 0);
+      node.scale.copy(worldScale);
+      spin.add(node);
+      wheelRoot.add(spin);
+      root.add(wheelRoot);
+      return { root: wheelRoot, spin, isLeft: layout[i].left, isFront: layout[i].front };
+    });
+  } else {
+    wheels = createProceduralWheels(definition, materials, root, offsetY);
+  }
+
+  const spec = definition.visual.procedural;
+  const seatZ = (spec.windshieldBase + spec.roofEnd) / 2 - 0.35;
+  const headlightPositions = definition.visual.headlights.map(([x, y, z]) => new THREE.Vector3(x, y, z + 0.05));
   return {
     root,
     body,
@@ -669,18 +785,24 @@ export function createProceduralVehicle(definition: VehicleDefinition, paint: Pa
     paintMaterial,
     brakeLightMaterial,
     reverseLightMaterial,
-    headlightMaterial: materials.headlight,
+    headlightMaterial: report.headlight ?? materials.headlight,
     headlightPositions,
-    hoodCamera,
-    cockpitCamera,
-    driver,
-    provisional: true,
+    hoodCamera: new THREE.Vector3(0, spec.beltHeight + 0.2 + offsetY, spec.windshieldBase - 0.05),
+    cockpitCamera: new THREE.Vector3(spec.width * 0.2, Math.min(spec.groundClearance + 1.06, spec.roofHeight - 0.2) + 0.02 + offsetY, seatZ - 0.02),
+    driver: new THREE.Group(),
+    provisional: definition.provisionalModel,
     dispose() {
-      for (const g of ownGeometries) g.dispose();
       paintMaterial.dispose();
-      brakeLightMaterial.dispose();
-      reverseLightMaterial.dispose();
+      brakeLightMaterial?.dispose();
+      reverseLightMaterial?.dispose();
+      for (const g of extraGeometries) g.dispose();
       root.removeFromParent();
     },
   };
+}
+
+/** Escolhe o modelo: GLB carregado com sucesso ou o procedural provisório. */
+export function createVehicleModel(definition: VehicleDefinition, paint: PaintOption, materials: VehicleMaterials, asset: LoadedVehicleAsset | null): VehicleModel {
+  if (asset) return createGltfVehicle(definition, paint, materials, asset);
+  return createProceduralVehicle(definition, paint, materials);
 }

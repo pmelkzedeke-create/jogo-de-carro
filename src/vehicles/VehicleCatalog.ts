@@ -140,6 +140,9 @@ export const VEHICLES: readonly VehicleDefinition[] = [
         rimColor: '#c9ccd1',
         rimStyle: 'spoke5',
       },
+      // Arquivo GLB de exemplo (gerado a partir do modelo procedural — ainda PROVISÓRIO).
+      // Substitua por um modelo licenciado mantendo as convenções de public/assets/vehicles/README.md.
+      gltf: { url: 'vehicles/valkar-sprint-gt.glb', scale: 1, rotationY: 0, offset: [0, 0, 0] },
       headlights: [
         [0.6, 0.12, 1.98],
         [-0.6, 0.12, 1.98],

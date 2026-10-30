@@ -20,7 +20,8 @@ import type { MaterialLibrary } from './Materials';
 import type { TextureLibrary } from './ProceduralTextures';
 import type { Renderer } from './Renderer';
 import { TrackView } from './TrackView';
-import { createProceduralVehicle, type VehicleMaterials, type VehicleModel } from './VehicleModelFactory';
+import { createVehicleModel, type VehicleMaterials, type VehicleModel } from './VehicleModelFactory';
+import type { LoadedVehicleAsset } from './VehicleAssetLoader';
 import { VehicleView } from './VehicleView';
 
 const PARTICLE_LIMITS: Record<Settings['graphics']['particles'], number> = { off: 0, low: 220, medium: 520, high: 1100 };
@@ -34,6 +35,8 @@ export interface RaceViewDeps {
   vehicleMaterials: VehicleMaterials;
   audio: AudioManager;
   settings: Settings;
+  /** Modelos GLB já carregados e validados, por veículo. */
+  assets: Map<string, LoadedVehicleAsset>;
 }
 
 export class RaceView {
@@ -83,7 +86,7 @@ export class RaceView {
     const night = ENVIRONMENT_PRESETS[track.definition.environment].headlights;
     deps.vehicleMaterials.setNight(night);
     for (const racer of session.racers) {
-      const model = createProceduralVehicle(racer.definition, getPaint(racer.definition, racer.paint), deps.vehicleMaterials);
+      const model = createVehicleModel(racer.definition, getPaint(racer.definition, racer.paint), deps.vehicleMaterials, deps.assets.get(racer.definition.id) ?? null);
       this.scene.add(model.root);
       this.views.set(racer.id, new VehicleView(model, racer.vehicle));
     }

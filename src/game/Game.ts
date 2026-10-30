@@ -19,6 +19,7 @@ import { TextureLibrary } from '../rendering/ProceduralTextures';
 import { RaceView } from '../rendering/RaceView';
 import { Renderer } from '../rendering/Renderer';
 import { VehicleMaterials } from '../rendering/VehicleModelFactory';
+import { VehicleAssetLoader, type LoadedVehicleAsset } from '../rendering/VehicleAssetLoader';
 import type { Track } from '../tracks/Track';
 import { buildTrack } from '../tracks/TrackBuilder';
 import { getTrackDefinition } from '../tracks/TrackCatalog';
@@ -87,6 +88,7 @@ export class Game {
   readonly materials: MaterialLibrary;
   readonly vehicleMaterials: VehicleMaterials;
   readonly garage: GarageScene;
+  readonly assets: VehicleAssetLoader;
   readonly loop: GameLoop;
   readonly stepper = new FixedTimestep(1 / 120, 8);
   settings: Settings;
@@ -157,6 +159,7 @@ export class Game {
     this.input = new InputManager(window);
     this.input.gamepadDeadzone = settings.controls.gamepadDeadzone;
     this.input.onGamepadChange = (connected, id) => this.events.emit('gamepad', { connected, id });
+    this.assets = new VehicleAssetLoader(renderer.renderer);
     this.garage = new GarageScene(renderer.renderer, this.vehicleMaterials);
     this.garage.resize(renderer.aspect);
     this.loop = new GameLoop((dt) => this.frame(dt));
@@ -233,9 +236,24 @@ export class Game {
   // Garagem / menu
   // ---------------------------------------------------------------------------
 
+  /**
+   * Mostra um carro na garagem/menu. Exibe o modelo procedural imediatamente e troca para o GLB
+   * assim que ele termina de carregar (se houver); falhas são informadas, nunca silenciosas.
+   */
   showVehicle(vehicleId: string, paintId: string): void {
     const def = getVehicle(vehicleId);
-    this.garage.setVehicle(def, getPaint(def, paintId));
+    const paint = getPaint(def, paintId);
+    if (!def.visual.gltf) {
+      this.garage.setVehicle(def, paint, null);
+      return;
+    }
+    if (this.garage.currentVehicleId !== def.id) this.garage.setVehicle(def, paint, null);
+    else this.garage.setPaint(paint);
+    void this.assets.load(def).then((result) => {
+      if (this.garage.currentVehicleId !== def.id) return;
+      if (result.status === 'loaded') this.garage.setVehicle(def, getPaint(def, paintId), result.asset);
+      else if (result.status === 'failed') this.events.emit('message', { text: `Modelo 3D de ${def.name} indisponível — usando modelo provisório`, kind: 'warn', key: 'asset', duration: 3500 });
+    });
   }
 
   setGarageMode(mode: 'menu' | 'garage', controls: HTMLElement | null): void {
@@ -264,6 +282,7 @@ export class Game {
     if (this.race) this.exitRace();
     this.state = 'loading';
     const steps: LoadStep[] = [
+      { id: 'models', label: 'Carregando modelos 3D dos carros', status: 'pending' },
       { id: 'track', label: 'Construindo pista e terreno', status: 'pending' },
       { id: 'physics', label: 'Criando colisores físicos', status: 'pending' },
       { id: 'cars', label: 'Preparando carros e pilotos', status: 'pending' },
@@ -279,8 +298,23 @@ export class Game {
     let physics: PhysicsWorld | null = null;
     let session: RaceSession | null = null;
     let view: RaceView | null = null;
-    let current = 'track';
+    let current = 'models';
     try {
+      set('models', 'active');
+      const assets = new Map<string, LoadedVehicleAsset>();
+      const vehicleIds = [...new Set([config.player.vehicleId, ...config.opponents.map((o) => o.vehicleId)])];
+      const withModel = vehicleIds.map(getVehicle).filter((d) => d.visual.gltf);
+      let failed = 0;
+      for (const def of withModel) {
+        const result = await this.assets.load(def, (fraction) => set('models', 'active', fraction === null ? def.name : `${def.name} ${Math.round(fraction * 100)}%`));
+        if (result.status === 'loaded') assets.set(def.id, result.asset);
+        else if (result.status === 'failed') {
+          failed++;
+          this.events.emit('message', { text: `Modelo 3D de ${def.name} indisponível — usando modelo provisório`, kind: 'warn', key: `asset-${def.id}`, duration: 4000 });
+        }
+      }
+      set('models', 'done', withModel.length === 0 ? 'modelos procedurais' : `${assets.size} GLB${failed ? `, ${failed} com falha (provisório)` : ''}`);
+      current = 'track';
       set('track', 'active', getTrackDefinition(config.trackId).name);
       await nextFrame();
       const prepared = this.prepareTrack(config.trackId);
@@ -313,6 +347,7 @@ export class Game {
         vehicleMaterials: this.vehicleMaterials,
         audio: this.audio,
         settings: this.settings,
+        assets,
       });
       set('scene', 'done');
       current = 'shaders';
@@ -624,6 +659,7 @@ export class Game {
     this.input.dispose();
     this.audio.dispose();
     this.garage.dispose();
+    this.assets.dispose();
     this.materials.dispose();
     this.vehicleMaterials.dispose();
     this.textures.dispose();

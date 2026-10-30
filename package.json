@@ -15,7 +15,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "tracks:plot": "vitest run --config vitest.tools.config.ts scripts/plot-tracks.tool.ts"
+    "tracks:plot": "vitest run --config vitest.tools.config.ts scripts/plot-tracks.tool.ts",
+    "predev": "node scripts/copy-decoders.mjs",
+    "prebuild": "node scripts/copy-decoders.mjs",
+    "assets:sample-glb": "vitest run --config vitest.tools.config.ts scripts/export-sample-glb.tool.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

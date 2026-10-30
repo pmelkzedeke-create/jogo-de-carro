@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { clamp, damp } from '../utils/math';
 import type { PaintOption, VehicleDefinition } from '../vehicles/VehicleConfig';
-import { applyPaint, createProceduralVehicle, type VehicleMaterials, type VehicleModel } from '../rendering/VehicleModelFactory';
+import { applyPaint, createVehicleModel, type VehicleMaterials, type VehicleModel } from '../rendering/VehicleModelFactory';
+import type { LoadedVehicleAsset } from '../rendering/VehicleAssetLoader';
 
 export type GarageMode = 'menu' | 'garage';
 
@@ -163,8 +164,11 @@ export class GarageScene {
     this.idleTime = 0;
   };
 
-  setVehicle(definition: VehicleDefinition, paint: PaintOption): void {
-    if (this.vehicleId === definition.id && this.model) {
+  private modelSource: 'gltf' | 'procedural' | null = null;
+
+  setVehicle(definition: VehicleDefinition, paint: PaintOption, asset: LoadedVehicleAsset | null = null): void {
+    const source = asset ? 'gltf' : 'procedural';
+    if (this.vehicleId === definition.id && this.model && this.modelSource === source) {
       applyPaint(this.model.paintMaterial, paint);
       return;
     }
@@ -172,7 +176,8 @@ export class GarageScene {
       this.model.dispose();
       this.model = null;
     }
-    const model = createProceduralVehicle(definition, paint, this.materials);
+    this.modelSource = source;
+    const model = createVehicleModel(definition, paint, this.materials, asset);
     // O modelo tem origem no centro da caixa de colisão; apoia as rodas no piso.
     const rideHeight = -model.wheels[0].root.position.y + definition.physics.wheels.radius;
     model.root.position.y = rideHeight + 0.08;
@@ -185,6 +190,10 @@ export class GarageScene {
     this.turntable.add(model.root);
     this.model = model;
     this.vehicleId = definition.id;
+  }
+
+  get currentVehicleId(): string | null {
+    return this.vehicleId;
   }
 
   setPaint(paint: PaintOption): void {

@@ -6,6 +6,7 @@ import { appStore } from '../app/appState';
 import { boot, pruneMessages, unlockAudio } from '../app/controller';
 import { useStore } from '../app/store';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { Toasts } from './components/Toasts';
 import { RaceScreen } from './race/RaceScreen';
 import { BootScreen } from './screens/BootScreen';
 import { CreditsScreen } from './screens/CreditsScreen';
@@ -55,6 +56,7 @@ export function App() {
         {screen === 'garage' && <GarageScreen />}
         {screen === 'settings' && <SettingsScreen />}
         {screen === 'credits' && <CreditsScreen />}
+        {screen !== 'race' && <Toasts />}
         <ConfirmDialog />
         {contextLost && (
           <div className="panel toast-context" role="alert">
